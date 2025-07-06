@@ -1,1 +1,1 @@
-A python function for a spherical bagplot.
+A python function for thespherical bagplot.
