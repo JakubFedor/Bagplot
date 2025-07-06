@@ -1,0 +1,9 @@
+pandas
+numpy
+plotly
+rpy2.robjects
+scipy
+kaleido==0.1.0.post1
+pillow
+geopandas
+shapely
