@@ -1,20 +1,10 @@
 import fun
 import rpy2.robjects as robjects
-import pandas as pd
 from rpy2.robjects.packages import importr
-from numpy.ma.core import arccos
-from rpy2.robjects.vectors import FloatVector, FloatMatrix
-import plotly.graph_objects as go
+from rpy2.robjects.vectors import FloatVector
 import numpy as np
-import scipy
-import math
-
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from PIL import Image
-import os
-import shutil
-from scipy.spatial.distance import cdist
 import geopandas as gpd
 from shapely.geometry import MultiPolygon, Polygon
 import requests
@@ -41,6 +31,9 @@ def plot_continent_outlines_on_sphere(fig,c=None,r=None):
 
     Args:
         fig (go.Figure): The existing Plotly figure to which the outlines will be added.
+        c (int): column of the plot the outlies should be added to. (when using subplots)
+        r (int): row of the plot the outlies should be added to. (when using subplots)
+
     """
 
     # 1. Acquire GeoJSON data for country boundaries (which implicitly define continent outlines)
@@ -102,12 +95,13 @@ def plot_continent_outlines_on_sphere(fig,c=None,r=None):
 
 #The function that plots the bagplot.
 
-def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False, figname="bagplot.pdf",  interactive=True, bagcol="#3c7cdd", loopcol="#a8c5f0",font="Latin Modern Roman",geo=False):
+def bagplot(data, weights=None, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False, figname="bagplot.pdf",  interactive=True, bagcol="#3c7cdd", loopcol="#a8c5f0",font="Latin Modern Roman",geo=False):
     """
         plots the bagplot as described in the thesis
 
         Args:
             data (np.ndarray or data format that can be transformed into an np.ndarray): Datapoints for wich the bagplot is to be plotted.
+            weights (np.ndarray or data format that can be transformed into an np.ndarray): Weights for each datapoint.
             dist ("arc", "cos" or "chord"): The distance to be used in calculations of the estimate of kappa and multiplying factor for the loop.
             borderdist ("max", "mean"): Whether the maximal or mean distance from the center of the bagplot to the border of the bag should be used.
             res (integer): Higher number will result in a better aproximation of the sphere.
@@ -118,6 +112,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
             bagcol (str): Color of the bag.
             loopcol (str): Color of the loop.
             font (str): Font used in the plot.
+            geo (bool): Whether or not to consider the data as geographic. If True outlines of countries will be plotted and the subplots will be centered on inhabited continets.
 
         Returns:
             plots the spherical bagplot
@@ -127,17 +122,21 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
     data_x=data[:, 0]
     data_y=data[:, 1]
     data_z=data[:, 2]
+    if weights is None:
+        weights=np.ones(len(data))
+    weights = np.asarray(weights)
     #loading the data into R instance
     fv_x = FloatVector(data_x)
     fv_y = FloatVector(data_y)
     fv_z = FloatVector(data_z)
+    fv_weights = FloatVector(weights)
     robjects.globalenv['x'] = fv_x
     robjects.globalenv['y'] = fv_y
     robjects.globalenv['z'] = fv_z
+    robjects.globalenv['weights'] = fv_weights
     robjects.r("data=cbind(x,y,z)")
-    robjects.r("l=length(x)")
     #calculate the depth of the datapoints
-    datadepth=robjects.r("ahD(data,rep(1,l))/l")
+    datadepth=robjects.r("ahD(data,weights)")
     #finding the depth of the border of the bag
     borderdepth = np.median(datadepth)
     datadict = dict()
@@ -159,9 +158,9 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
 
 
 
-    #fingind the rotation matrix that ensures that the first point in the grid used to generate the sphere
+    #finding the rotation matrix that ensures that the first point in the grid used to generate the sphere is the estimate of the median
     rotation_matrix = fun.ortho_matrix(mid)
-
+    #applying the rotation matrix
     x_sphere_rotated = (rotation_matrix[0, 0] * x_sphere +
                         rotation_matrix[0, 1] * y_sphere +
                         rotation_matrix[0, 2] * z_sphere)
@@ -189,7 +188,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
         robjects.globalenv['y'] = y_spherefv
         robjects.globalenv['z'] = z_spherefv
         robjects.r("coords=cbind(x,y,z)")
-        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,rep(1,l),coords)/l")) >= borderdepth,
+        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,weights,coords)")) >= borderdepth,
                                           1, 0)
     #finding the borders of the bag
     borders = []
@@ -226,7 +225,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
         for i in range(len(surface_colors_data[j])):
             if middist[i,j]> borderd and middist[i,j] <=loopd:
                 surface_colors_data[i,j]=0.5
-    #the plotting itself depending on the choice of interactive and savefig
+    #the plotting itself depending on the choice of interactive, savefig and geo
 
 
 
@@ -234,7 +233,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
         if interactive:
             if savefig:
                 print("Saving figure is not adviced with interactive mode. Proceeding without saving.")
-
+            #plots the colored sphere
             fig = go.Figure(
                 data=[
                     go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
@@ -245,7 +244,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                                showscale=False,
                                name='Sphere Regions')]
             )
-
+            #plots the datapoints
             for i in range(len(data_x)):
                 center = [data_x[i], data_y[i], data_z[i]]
                 # Generate sphere mesh data for the current center
@@ -263,7 +262,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                 ))
 
 
-
+            #plots the center
             center = [mid[0], mid[1], mid[2]]
             # Generate sphere mesh data for the current center
             x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
@@ -302,7 +301,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
         else:
             if not savefig:
 
-
+                #create sublots
                 fig = make_subplots(
                     rows=2, cols=3,
                     specs=[[{'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}],
@@ -311,11 +310,11 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                         ['View from above', 'View from below', 'View from the front', 'View from the back', 'View from the right',
                          'View from the left'])
                 )
-
+                #iterate over subplots
                 row = 1
                 col = 1
                 for i in range(6):
-                    # Add the sphere surface
+                    # plots the colored sphere
                     fig.add_trace(
                         go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
                                    surfacecolor=surface_colors_data,  # <--- Pass your conditional data here
@@ -326,37 +325,34 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                         row=row, col=col
                     )
 
-
-                    # Add the random points (the 'dots')
+                    # plots the datapoints
                     for i in range(len(data_x)):
                         center = [data_x[i], data_y[i], data_z[i]]
-                        # Generate sphere mesh data for the current center
+
                         x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                             center, 0.005, 15, 15
                         )
 
-                        # Add a Mesh3d trace for this sphere
                         fig.add_trace(go.Mesh3d(
                             x=x_sphere1, y=y_sphere1, z=z_sphere1,
                             i=i_faces, j=j_faces, k=k_faces,
-                            color="black",  # Assign a random color for each sphere
+                            color="black",
                             opacity=1,
                             showlegend=False
                         ),
                             row=row, col=col)
-
-
+                    #plots the center
                     center = [mid[0], mid[1], mid[2]]
-                    # Generate sphere mesh data for the current center
+
                     x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                         center, 0.05, 15, 15
                     )
 
-                    # Add a Mesh3d trace for this sphere
+
                     fig.add_trace(go.Mesh3d(
                         x=x_sphere1, y=y_sphere1, z=z_sphere1,
                         i=i_faces, j=j_faces, k=k_faces,
-                        color="black",  # Assign a random color for each sphere
+                        color="black",
                         opacity=1,
                         showlegend=False
                     ),
@@ -370,12 +366,12 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
 
                 fig.update_layout(
                     title_text="Bagplot from different views",
-                    height=800,  # Adjust height as needed
-                    width=1000,  # Adjust width as needed
+                    height=800,
+                    width=1000,
                     margin=dict(l=50, r=50, b=50, t=100),
                     showlegend=False,
-                    plot_bgcolor='white',  # Background of the entire plot area
-                    paper_bgcolor='white',  # Background outside the plot area
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
                     scene_camera={"eye": {'x': .0, 'y': 0, 'z': 1.25}},
                     scene_xaxis_visible=False,
                     scene_yaxis_visible=False,
@@ -428,8 +424,9 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                 cameras = [{"eye": {'x': .0, 'y': 0, 'z': 1.25}}, {"eye": {'x': .0, 'y': 0, 'z': -1.25}},
                            {"eye": {'x': .0, 'y': 1.25, 'z': 0}}, {"eye": {'x': .0, 'y': -1.25, 'z': 0}},
                            {"eye": {'x': 1.25, 'y': 0, 'z': 0}}, {"eye": {'x': -1.25, 'y': 0, 'z': 0}}]
-
+                #iterates over the views and creates an image file for each view
                 for a in range(6):
+                    #plots the colored sphere
                     fig = go.Figure(
                         data=[
                             go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
@@ -441,7 +438,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                                        name='Sphere Regions')]
                     )
 
-
+                    #plots the datapoints
                     for i in range(len(data_x)):
                         center = [data_x[i], data_y[i], data_z[i]]
                         # Generate sphere mesh data for the current center
@@ -449,27 +446,27 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                             center, 0.005, 15, 15
                         )
 
-                        # Add a Mesh3d trace for this sphere
+
                         fig.add_trace(go.Mesh3d(
                             x=x_sphere1, y=y_sphere1, z=z_sphere1,
                             i=i_faces, j=j_faces, k=k_faces,
-                            color="black",  # Assign a random color for each sphere
+                            color="black",
                             opacity=1,
                             showlegend=False
                         ))
 
-
+                    #plots the center
                     center = [mid[0], mid[1], mid[2]]
                     # Generate sphere mesh data for the current center
                     x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                         center, 0.05, 15, 15
                     )
 
-                    # Add a Mesh3d trace for this sphere
+
                     fig.add_trace(go.Mesh3d(
                         x=x_sphere1, y=y_sphere1, z=z_sphere1,
                         i=i_faces, j=j_faces, k=k_faces,
-                        color="black",  # Assign a random color for each sphere
+                        color="black",
                         opacity=1,
                         showlegend=False
                     ))
@@ -492,20 +489,21 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                     )
 
                     fig.write_image(image_names[a], engine="kaleido")
-
+                #combines the images into one pdf file
                 fun.combine_images(image_names, figname, 2, 3)
 
     if geo:
-        contcenters_xyz=[[0.5197807100754235, 0.24588422745439137, 0.8181497174250234], \
-                         [0.033674887449759994, 0.7224104283095965, 0.6906440291675526],\
-                         [0.9597773801926751, 0.277025506104953, 0.045653580777193926],\
-                         [-0.12742624951896128, -0.6617151315913206, 0.7388475049403719],\
-                         [0.5372527575923208, -0.7994243397696936, -0.2688497711422428],\
+        #centers for each continent used to find the viewpoints
+        contcenters_xyz=[[0.5197807100754235, 0.24588422745439137, 0.8181497174250234],
+                         [0.033674887449759994, 0.7224104283095965, 0.6906440291675526],
+                         [0.9597773801926751, 0.277025506104953, 0.045653580777193926],
+                         [-0.12742624951896128, -0.6617151315913206, 0.7388475049403719],
+                         [0.5372527575923208, -0.7994243397696936, -0.2688497711422428],
                          [-0.6304174044492995, 0.6447776767078117, -0.432244888676182]]
         if interactive:
             if savefig:
                 print("Saving figure is not adviced with interactive mode. Proceeding without saving.")
-
+            #plots the colored sphere
             fig = go.Figure(
                 data=[
                     go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
@@ -516,7 +514,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                                showscale=False,
                                name='Sphere Regions')]
             )
-
+            #plots the datapoints
             for i in range(len(data_x)):
                 center = [data_x[i], data_y[i], data_z[i]]
                 # Generate sphere mesh data for the current center
@@ -534,7 +532,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                 ))
 
 
-
+            #plots the center
             center = [mid[0], mid[1], mid[2]]
             # Generate sphere mesh data for the current center
             x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
@@ -560,7 +558,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                     bgcolor="rgba(0,0,0,0)",
                     aspectmode='data',
                     camera={
-                        "center": dict(x=0, y=0, z=0),  # Look at origin
+                        "center": dict(x=0, y=0, z=0),
                         "up": dict(x=0, y=0, z=1)
                     }
                 ),
@@ -569,12 +567,13 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                     family=font,
                     size=25)
             )
+            #plots the countries outlines
             fig=plot_continent_outlines_on_sphere(fig)
             fig.show()
         else:
             if not savefig:
 
-
+                #create the subplots
                 fig = make_subplots(
                     rows=2, cols=3,
                     specs=[[{'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}],
@@ -583,11 +582,11 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                         ['Europe', 'Asia', "Africa", 'North America', 'South America', 'Australia'
                          ])
                 )
-
+                #iterate over the subplots
                 row = 1
                 col = 1
                 for i in range(6):
-                    # Add the sphere surface
+                    #plots the colored sphere
                     fig.add_trace(
                         go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
                                    surfacecolor=surface_colors_data,
@@ -599,56 +598,54 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                     )
 
 
-                    # Add the random points (the 'dots')
+                    #plots the datapoints
                     for i in range(len(data_x)):
                         center = [data_x[i], data_y[i], data_z[i]]
-                        # Generate sphere mesh data for the current center
+
                         x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                             center, 0.005, 15, 15
                         )
 
-                        # Add a Mesh3d trace for this sphere
+
                         fig.add_trace(go.Mesh3d(
                             x=x_sphere1, y=y_sphere1, z=z_sphere1,
                             i=i_faces, j=j_faces, k=k_faces,
-                            color="black",  # Assign a random color for each sphere
+                            color="black",
                             opacity=1,
                             showlegend=False
                         ),
                             row=row, col=col)
 
-
+                    #plots the center
                     center = [mid[0], mid[1], mid[2]]
-                    # Generate sphere mesh data for the current center
                     x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                         center, 0.05, 15, 15
                     )
 
 
-                    # Add a Mesh3d trace for this sphere
                     fig.add_trace(go.Mesh3d(
                         x=x_sphere1, y=y_sphere1, z=z_sphere1,
                         i=i_faces, j=j_faces, k=k_faces,
-                        color="black",  # Assign a random color for each sphere
+                        color="black",
                         opacity=1,
                         showlegend=False
                     ),
                         row=row, col=col)
-                    # Update scene layout for each subplot
+                    #plots the countries outlines
                     fig = plot_continent_outlines_on_sphere(fig, c=col, r=row)
                     col += 1
                     if col > 3:
                         col = 1
                         row += 1
-
+                #updating layout
                 fig.update_layout(
                     title_text="Bagplot from different views",
-                    height=800,  # Adjust height as needed
-                    width=1000,  # Adjust width as needed
+                    height=800,
+                    width=1000,
                     margin=dict(l=50, r=50, b=50, t=100),
                     showlegend=False,
-                    plot_bgcolor='white',  # Background of the entire plot area
-                    paper_bgcolor='white',  # Background outside the plot area
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
                     scene_camera={"eye": {'x': 1.25*contcenters_xyz[0][0], 'y': 1.25*contcenters_xyz[0][1], 'z': 1.25*contcenters_xyz[0][2]}},
                     scene_xaxis_visible=False,
                     scene_yaxis_visible=False,
@@ -695,6 +692,7 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
 
 
             else:
+                #titles and views for the subplots
                 titles = ['Europe', 'Asia', "Africa", 'North America', 'South America', 'Australia'
                          ]
                 image_names = ["bageurope.png", "bagasia.png", "bagafrica.png", "bagnamerica.png", "bagsamerica.png", "bagaustralia.png"]
@@ -704,8 +702,9 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                            {"eye": {'x': 1.25*contcenters_xyz[3][0], 'y': 1.25*contcenters_xyz[3][1], 'z': 1.25*contcenters_xyz[3][2]}},\
                            {"eye": {'x': 1.25*contcenters_xyz[4][0], 'y': 1.25*contcenters_xyz[4][1], 'z': 1.25*contcenters_xyz[4][2]}},
                            {"eye": {'x': 1.25*contcenters_xyz[5][0], 'y': 1.25*contcenters_xyz[5][1], 'z': 1.25*contcenters_xyz[5][2]}}]
-
+                #iterates over the views and creates an image file for each view
                 for a in range(6):
+                    #plots the colored sphere
                     fig = go.Figure(
                         data=[
                             go.Surface(x=x_sphere_rotated, y=y_sphere_rotated, z=z_sphere_rotated,
@@ -717,35 +716,31 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                                        name='Sphere Regions')]
                     )
 
-
+                    #plots the datapoints
                     for i in range(len(data_x)):
                         center = [data_x[i], data_y[i], data_z[i]]
-                        # Generate sphere mesh data for the current center
                         x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                             center, 0.005, 15, 15
                         )
 
-                        # Add a Mesh3d trace for this sphere
                         fig.add_trace(go.Mesh3d(
                             x=x_sphere1, y=y_sphere1, z=z_sphere1,
                             i=i_faces, j=j_faces, k=k_faces,
-                            color="black",  # Assign a random color for each sphere
+                            color="black",
                             opacity=1,
                             showlegend=False
                         ))
 
-
+                    #plots the center
                     center = [mid[0], mid[1], mid[2]]
-                    # Generate sphere mesh data for the current center
                     x_sphere1, y_sphere1, z_sphere1, i_faces, j_faces, k_faces = fun.generate_sphere_data(
                         center, 0.05, 15, 15
                     )
 
-                    # Add a Mesh3d trace for this sphere
                     fig.add_trace(go.Mesh3d(
                         x=x_sphere1, y=y_sphere1, z=z_sphere1,
                         i=i_faces, j=j_faces, k=k_faces,
-                        color="black",  # Assign a random color for each sphere
+                        color="black",
                         opacity=1,
                         showlegend=False
                     ))
@@ -766,9 +761,10 @@ def bagplot(data, dist="arc", a=0.99 ,borderdist="mean", res=500, savefig=False,
                             family=font,
                             size=25)
                     )
+                    #plots the countries outlines
                     fig=plot_continent_outlines_on_sphere(fig)
                     fig.write_image(image_names[a], engine="kaleido")
-
+                #combines the images into one pdf file
                 fun.combine_images(image_names, figname, 2, 3)
 
 
