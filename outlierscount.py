@@ -72,7 +72,7 @@ def points_on_semicircle(point1, point2, num_points):
 
 
 
-def outliers_count(data,weights=None dist="arc", a=0.99, borderdist="mean", res=500):
+def outliers_count(data, weights=None, dist="arc", a=0.99, borderdist="mean", res=500):
     data = np.asarray(data)
     # x, y and z values from the data
     data_x = data[:, 0]
@@ -85,10 +85,13 @@ def outliers_count(data,weights=None dist="arc", a=0.99, borderdist="mean", res=
     robjects.globalenv['x'] = fv_x
     robjects.globalenv['y'] = fv_y
     robjects.globalenv['z'] = fv_z
-    robjects.r("data=cbind(x,y,z)")
+
     if weights=None:
         weights = np.ones(len(data))
     weights = np.asarray(weights)
+    fv_weights = FloatVector(weights)
+    robjects.r("data=cbind(x,y,z)")
+    robjects.globalenv['weights'] = fv_weights
     # calculate the depth of the datapoints
     datadepth = robjects.r("ahD(data,weights)")
     # finding the depth of the border of the bag
