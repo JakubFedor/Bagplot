@@ -1,20 +1,9 @@
 import fun
 import rpy2.robjects as robjects
-import pandas as pd
 from rpy2.robjects.packages import importr
-from numpy.ma.core import arccos
-from rpy2.robjects.vectors import FloatVector, FloatMatrix
-import plotly.graph_objects as go
+from rpy2.robjects.vectors import FloatVector
 import numpy as np
-import scipy
-import math
 base = importr('base')
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from PIL import Image
-import os
-import shutil # For removing directories and their contents
-from scipy.spatial.distance import cdist
 
 
 
@@ -83,7 +72,7 @@ def points_on_semicircle(point1, point2, num_points):
 
 
 
-def outliers_count(data, dist="arc", a=0.99, borderdist="mean", res=500):
+def outliers_count(data,weights=None dist="arc", a=0.99, borderdist="mean", res=500):
     data = np.asarray(data)
     # x, y and z values from the data
     data_x = data[:, 0]
@@ -97,9 +86,11 @@ def outliers_count(data, dist="arc", a=0.99, borderdist="mean", res=500):
     robjects.globalenv['y'] = fv_y
     robjects.globalenv['z'] = fv_z
     robjects.r("data=cbind(x,y,z)")
-    robjects.r("l=length(x)")
+    if weights=None:
+        weights = np.ones(len(data))
+    weights = np.asarray(weights)
     # calculate the depth of the datapoints
-    datadepth = robjects.r("ahD(data,rep(1,l))/l")
+    datadepth = robjects.r("ahD(data,weights)")
     # finding the depth of the border of the bag
     borderdepth = np.median(datadepth)
     nonbagpoints= [data[i] for i in range(len(data_x)) if datadepth[i] < borderdepth]
@@ -143,7 +134,7 @@ def outliers_count(data, dist="arc", a=0.99, borderdist="mean", res=500):
         robjects.globalenv['y'] = y_spherefv
         robjects.globalenv['z'] = z_spherefv
         robjects.r("coords=cbind(x,y,z)")
-        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,rep(1,l),coords)/l")) >= borderdepth,
+        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,weights,coords)")) >= borderdepth,
                                           1, 0)
     # finding the borders of the bag
     borders = []
@@ -185,7 +176,7 @@ def outliers_count(data, dist="arc", a=0.99, borderdist="mean", res=500):
         robjects.globalenv['y'] = grid_yfv
         robjects.globalenv['z'] = grid_zfv
         robjects.r("coords=cbind(x,y,z)")
-        bagornot =np.where(np.array(robjects.r("ahD(data,rep(1,l),coords)/l")) >= borderdepth,1, 0)
+        bagornot =np.where(np.array(robjects.r("ahD(data,weights,coords)")) >= borderdepth,1, 0)
         borderindex = np.where(bagornot == 0)[0][0] - 1
 
         if dist == "arc":
