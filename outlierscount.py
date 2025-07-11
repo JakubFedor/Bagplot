@@ -86,7 +86,7 @@ def outliers_count(data, weights=None, dist="arc", a=0.99, borderdist="mean", re
     robjects.globalenv['y'] = fv_y
     robjects.globalenv['z'] = fv_z
 
-    if weights==None:
+    if weights is None:
         weights = np.ones(len(data))
     weights = np.asarray(weights)
     fv_weights = FloatVector(weights)
