@@ -188,7 +188,7 @@ def bagplot(data, weights=None, dist="arc", a=0.99 ,borderdist="mean", res=500, 
         robjects.globalenv['y'] = y_spherefv
         robjects.globalenv['z'] = z_spherefv
         robjects.r("coords=cbind(x,y,z)")
-        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,weights,coords)")) >= borderdepth,
+        surface_colors_data[i] = np.where(np.array(robjects.r("ahD(data,weights,coords)")) > borderdepth,
                                           1, 0)
     #finding the borders of the bag
     borders = []

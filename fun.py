@@ -14,13 +14,14 @@ base = importr('base')
 #Importing packages and making sure that the correct R packages are imported and installed as well.
 
 utils = importr('utils')
+
+robjects.r('''
+if (!requireNamespace("devtools", quietly = TRUE)) {
+install.packages("devtools", repos = "http://cran.us.r-project.org")
+}
+devtools::install_github("DyckerhoffRainer/sphericalDepth")  
+ ''')
 devtools=importr('devtools')
-# robjects.r('''
-#   if (!requireNamespace("devtools", quietly = TRUE)) {
-#     install.packages("devtools", repos = "http://cran.us.r-project.org")
-#   }
-#   devtools::install_github("DyckerhoffRainer/sphericalDepth")  # Example: installing ggplot2 from GitHub
-# ''')
 ahd=importr('sphericalDepth')
 
 #Defining function t, this will be used later to estimate the parameter kappa and
