@@ -1,0 +1,67 @@
+---
+title: "Simulations"
+author: "Translated from Python"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup}
+# Install and load required packages
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools", repos = "http://cran.us.r-project.org")
+}
+if (!requireNamespace("movMF", quietly = TRUE)) {
+  install.packages("movMF", repos = "http://cran.us.r-project.org")
+}
+if (!requireNamespace("sphericalDepth", quietly = TRUE)) {
+  devtools::install_github("DyckerhoffRainer/sphericalDepth")
+}
+library(movMF)
+library(sphericalDepth)
+source("fun.r")
+source("outlierscount.r")
+```
+
+```{r sim_k1}
+outliers_list_k1_500_mean <- c()
+outliers_list_k1_500_max <- c()
+for (i in 1:500) {
+  set.seed(i + 150)
+  test <- rmovMF(1000, theta = c(0, 0, 1), kappa = 1)
+  outliers_list_k1_500_mean <- c(outliers_list_k1_500_mean, outliers_count(test))
+  outliers_list_k1_500_max <- c(outliers_list_k1_500_max, outliers_count(test, borderdist = "max"))
+}
+```
+
+```{r sim_k3}
+outliers_list_k3_500_mean <- c()
+outliers_list_k3_500_max <- c()
+for (i in 1:500) {
+  set.seed(i + 150)
+  test <- rmovMF(1000, theta = c(0, 0, 1), kappa = 3)
+  outliers_list_k3_500_mean <- c(outliers_list_k3_500_mean, outliers_count(test))
+  outliers_list_k3_500_max <- c(outliers_list_k3_500_max, outliers_count(test, borderdist = "max"))
+}
+```
+
+```{r sim_k5}
+outliers_list_k5_500_mean <- c()
+outliers_list_k5_500_max <- c()
+for (i in 1:500) {
+  set.seed(i + 150)
+  test <- rmovMF(1000, theta = c(0, 0, 1), kappa = 5)
+  outliers_list_k5_500_mean <- c(outliers_list_k5_500_mean, outliers_count(test))
+  outliers_list_k5_500_max <- c(outliers_list_k5_500_max, outliers_count(test, borderdist = "max"))
+}
+```
+
+```{r sim_k05}
+outliers_list_k05_500_mean <- c()
+outliers_list_k05_500_max <- c()
+for (i in 1:500) {
+  set.seed(i + 150)
+  test <- rmovMF(1000, theta = c(0, 0, 1), kappa = 0.5)
+  outliers_list_k05_500_mean <- c(outliers_list_k05_500_mean, outliers_count(test))
+  outliers_list_k05_500_max <- c(outliers_list_k05_500_max, outliers_count(test, borderdist = "max"))
+}
+```
