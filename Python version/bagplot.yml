@@ -1,0 +1,21 @@
+name: bagplot
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.12
+  - r-base=4.4
+  - r-devtools
+  - pandas
+  - numpy
+  - scipy
+  - plotly
+  - pillow
+  - geopandas
+  - shapely
+  - rpy2
+  - ipykernel
+  - pip 
+  - pip:
+    - kaleido
