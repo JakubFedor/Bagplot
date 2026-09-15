@@ -16,6 +16,7 @@ dependencies:
   - shapely
   - rpy2
   - ipykernel
+  - nbformat>=4.2.0
   - pip 
   - pip:
     - kaleido

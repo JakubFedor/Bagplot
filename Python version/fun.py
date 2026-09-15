@@ -26,10 +26,12 @@ ahd=importr('sphericalDepth')
 
 #Defining function t, this will be used later to estimate the parameter kappa and
 def t(k,a=0.99):
-    if k!=0:
-        return (math.log((1-a)*math.exp(2*k)+a)-k)/k
-    if k==0:
-        return 1-2*a
+    k = float(np.asarray(k).reshape(-1)[0])
+
+    if k == 0:
+        return 1 - 2 * a
+
+    return (np.log((1 - a) * np.exp(2 * k) + a) - k) / k
 
 
 #Definitions of distance metrics.
@@ -50,19 +52,19 @@ def chordeq(k,d):
     return np.sqrt(2*(1-t(k,a=0.5)))-d
 #Defining functions for the estimation for kappa.
 def kappaarc(d):
-    return scipy.optimize.fsolve(arceq,1,args=(d))
+    return scipy.optimize.fsolve(arceq,1,args=(d,))[0]
 def kappacos(d):
-    return scipy.optimize.fsolve(coseq,1,args=(d))
+    return scipy.optimize.fsolve(coseq,1,args=(d,))[0]
 def kappachord(d):
-    return scipy.optimize.fsolve(chordeq,1,args=(d))
+    return scipy.optimize.fsolve(chordeq,1,args=(d,))[0]
 
 #Defining functions that calculate the multiplying factor, given the estimate of kappa
 def arcMF(k,a=0.99):
-    return np.arccos(t(k,a))/np.arccos(t(k,1/2))[0]
+    return np.arccos(t(k,a))/np.arccos(t(k,1/2))
 def cosMF(k,a=0.99):
-    return (1-t(k,a))/(1-t(k,1/2))[0]
+    return (1-t(k,a))/(1-t(k,1/2))
 def chordMF(k,a=0.99):
-    return np.sqrt(2*(1-t(k,a)))/np.sqrt(2*(1-t(k,1/2)))[0]
+    return np.sqrt(2*(1-t(k,a)))/np.sqrt(2*(1-t(k,1/2)))
 
 
 #defining the function that calculates the multiplying factor given the set of points
@@ -190,7 +192,7 @@ def ortho_matrix(v1):
 
     # Get the index of the standard basis vector that is "most orthogonal" to u1
     # (i.e., has the smallest absolute dot product)
-    temp_vector_index = np.argmin(dot_products)
+    temp_vector_index = np.argmin(dot_products)    dot_products <- abs(standard_bases %*% v1)
     temp_vector = standard_bases[temp_vector_index]
 
     # 3. Calculate the second orthogonal vector (u2)
